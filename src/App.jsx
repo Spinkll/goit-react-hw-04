@@ -1,55 +1,88 @@
 import "./App.css";
-import ContactForm from "./components/ContactForm/ContactForm";
-import { useEffect, useState } from "react";
-import SearchBox from "./components/SearchBox/SearchBox";
-import ContactList from "./components/ContactList/ContactList";
+import { useState } from "react";
+import SearchBar from "./components/SearchBar/SearchBar";
+import { Toaster } from "react-hot-toast";
+import ImageGallery from "./components/ImageGallery/ImageGallery";
+import { InfinitySpin } from "react-loader-spinner";
+import ErrorMessage from "./components/ErrorMessage/ErrorMessage";
+import LoadMoreBtn from "./components/LoadMoreBtn/LoadMoreBtn";
+import ImageModal from "./components/ImageModal/ImageModal";
+import { fetchImagesWithName } from "./images-api";
 
 function App() {
-  const infocontact = [
-    { id: "id-1", name: "Rosie Simpson", number: "459-12-56" },
-    { id: "id-2", name: "Hermione Kline", number: "443-89-12" },
-    { id: "id-3", name: "Eden Clements", number: "645-17-79" },
-    { id: "id-4", name: "Annie Copeland", number: "227-91-26" },
-  ];
+  const [images, setImages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [modalIsOpen, setModalIsOpen] = useState(false);
 
-  const getInitialContact = () => {
-    const savedContact = window.localStorage.getItem("saved-contact");
-    return savedContact ? JSON.parse(savedContact) : infocontact;
+  const handleSearch = async (name) => {
+    setQuery(name);
+    setPage(1);
+    try {
+      setImages([]);
+      setError(false);
+      setLoading(true);
+      const data = await fetchImagesWithName(name, 1);
+      setImages(data.results);
+    } catch (error) {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const [contact, setContact] = useState(getInitialContact);
-  const [inputValue, setInputValue] = useState("");
-
-  const searchContact = contact.filter((contact) =>
-    contact.name.toLowerCase().includes(inputValue.toLowerCase())
-  );
-
-  const deleteContact = (id) => {
-    setContact((prevContacts) =>
-      prevContacts.filter((contact) => contact.id !== id)
-    );
+  const handleLoadMore = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchImagesWithName(query, page + 1);
+      setImages((prevImages) => [...prevImages, ...data.results]);
+      setPage((prevPage) => prevPage + 1);
+    } catch (error) {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const addContact = (newContact) => {
-    setContact((prevContacts) => [...prevContacts, newContact]);
+  const handleImageClick = (image) => {
+    setSelectedImage(image);
+    setModalIsOpen(true);
   };
 
-  useEffect(() => {
-    window.localStorage.setItem("saved-contact", JSON.stringify(contact));
-  }, [contact]);
+  const handleCloseModal = () => {
+    setModalIsOpen(false);
+    setSelectedImage(null);
+  };
 
   return (
     <>
-      <h1>Phonebook</h1>
-      <ContactForm onAdd={addContact} />
-      <SearchBox
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
-      />
-      <ContactList
-        infocontacts={searchContact}
-        deleteContacts={deleteContact}
-      />
+      <SearchBar onSubmit={handleSearch} />
+      <Toaster position="top-right" />
+      {loading && (
+        <InfinitySpin
+          visible={true}
+          width="200"
+          color="#4fa94d"
+          ariaLabel="infinity-spin-loading"
+        />
+      )}
+      {error && <ErrorMessage />}
+      {images.length > 0 && (
+        <ImageGallery items={images} onImageClick={handleImageClick} />
+      )}
+      {images.length > 0 && !loading && (
+        <LoadMoreBtn onClick={handleLoadMore} />
+      )}
+      {selectedImage && (
+        <ImageModal
+          isOpen={modalIsOpen}
+          onClose={handleCloseModal}
+          image={selectedImage}
+        />
+      )}
     </>
   );
 }
